@@ -1,0 +1,99 @@
+function [M,Mdot,C,Grav] = NE_matrix(q, dq, m, J_joint, ML) %ML= [MX, MY, MZ]
+
+g = [0;0;-9.8];
+%% A mat
+Arot = [0;0;1;0;0;0];
+Alin = [0;0;0;0;0;1];
+A = zeros(6*6,6);
+for i = 1:6
+    A(6*(i-1)+1:6*i,i) = Arot;
+end
+
+%% SO(3) & Frame Position Vector
+alpha = [0; -pi/2; 0;     pi/2;  -pi/2; pi/2];
+a =     [0; 0.160; 0.980; 0.150; 0;    0];  
+theta = [0; -pi/2; 0;     0;     0;    0];
+d =     [0;   0;    0;   -0.860; 0;     0];
+
+R = zeros(3,3*6);
+p_body_pre = zeros(3,6); % e.g. p_01_0
+p_body_aft = zeros(3,6); % e.g. p_10_1
+
+for i = 1:6
+    T_tmp = mod_DH_T(a(i),d(i),alpha(i),q(i) + theta(i)); %R_i_i+1
+    R(1:3,3*(i-1)+1:3*i) = T_tmp(1:3,1:3);
+    p_body_pre(:,i) =T_tmp(1:3,4);
+    % p_body_pre(i) = p_i_i+1
+end
+
+for i = 1:6
+    p_body_aft(:,i) = -transpose(R(1:3,3*(i-1)+1:3*i))*p_body_pre(:,i);
+    % R_i+1_i * p_body_pre
+    % (position of i+1 frame) (respect to i frame) (in i+1 coordinate)
+    % p_(i+1)_i^(i+1)
+end
+
+%% SE(3)
+T = zeros(4,4,6);
+    for i = 1:6 
+        T(:,:,i) = [transpose(R(1:3,3*(i-1)+1:3*i)), p_body_aft(:,i);0 0 0 1];
+        % T_i+1_i
+    end
+
+%% G mat
+Gi = sym(zeros(7*6,7*6));
+count = 1;
+for i=1:9
+        Gi(6*(i-1)+1:6*i,6*(i-1)+1:6*i) = [J_joint(:,:,count), skew(ML(:,count));-skew(ML(:,count)), m(count)*eye(3)];
+        count = count + 1;
+end
+
+
+
+%% NE
+    % W
+    W1 = zeros(6*7,6*7);
+    for i = 1:5
+        W1(6*i+1:6*(i+1),6*(i-1)+1:6*i) = Ad(T(:,:,i+1));
+    end
+
+
+    % L
+    LL = zeros(6*6,6*6);
+    for i = 1:6
+        for j = i:6
+            T_temp = eye(4);
+            if j == i
+                LL(6*(j-1)+1:6*j,6*(i-1)+1:6*i) = eye(6);
+            else
+                for k = i+1:j
+                    T_temp = T(:,:,k)*T_temp;
+                end
+                LL(6*(j-1)+1:6*j,6*(i-1)+1:6*i) = Ad(T_temp);
+            end
+        end
+    end
+
+    %% Forward Iteration
+    dV0 = [0;0;0;-g];
+
+    V = zeros(6,1,7);
+    V(:,:,1) = Arot*dq(1);
+    for i = 2:7
+            V(:,:,i) = Ad(T(:,:,i))*V(:,:,i-1) + Arot*dq(i);
+    end
+
+    ad_V = zeros(6*7,6*7);
+
+    for i = 1:7
+        ad_V(6*(i-1)+1:6*i,6*(i-1)+1:6*i) = adj(V(:,:,i));
+    end
+    LLdot = LL*ad_V-ad_V*LL;
+    dV_base = [Ad(T(:,:,1))*dV0;zeros(36,1)];
+    %% parameter
+    M = transpose(A)*transpose(LL)*Gi*LL*A;
+    Mdot = transpose(A)*transpose(LLdot)*Gi*LL*A + transpose(A)*transpose(LL)*Gi*LLdot*A;
+    C = transpose(A)*transpose(LL)*(Gi*LL*ad_V-transpose(ad_V)*Gi*LL)*A;
+
+    Grav = transpose(A)*transpose(LL)*Gi*LL*dV_base;
+end

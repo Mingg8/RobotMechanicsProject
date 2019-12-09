@@ -1,69 +1,37 @@
-clear
-close all
-clc
+%% #1
+clc;
+qi = [0; 0; 0; 0; 0; 0; 0];
 
-addpath('functions');
-
-Tk = 0.001;
-
-%% 1
-
-tic
-p = [0; 0; 0];
-q = [0; 0; 0; 0; 0; 0];
-
-[R_se, J, tmp] = getJacobian_spatial(q);
-[R_se2, J2, tmp2] = getJacobian_1(q);
+p = [0, 0, 0];
+p_0 = inv(T_s0) * [p'; 1];
+[R_se, J, tmp] = getJacobian(qi);
 pos = R_se(1:3, 4) + R_se(1:3, 1:3) * [0; 0; 3*sqrt(2)];
-distance = norm(pos - p);
+distance = norm(pos - p_0(1:3));
 dist_arr = [];
 
-gain = 10;
-while ( abs(distance) > 0.0001 )    
+gain = 50;
+
+q = [];
+while (abs(distance) > 1e-4)
     % control
     mat = [0, -3*sqrt(2), 0;
         3*sqrt(2), 0, 0;
         0, 0, 0];
-    J1 = [eye(3) -R_se(1:3, 1:3)* mat *R_se(1:3, 1:3)';
-        zeros(3) eye(3)] *J;
+    J1 = [eye(3) -R_se(1:3, 1:3)* mat *R_se(1:3, 1:3)'] *J;
+    i = i + 1;
+    if (det(J1 * J1') < 1e-1) 
+        q_dot = -J1'*inv(J1*J1'+0.01 * eye(3)) * gain * [(pos-p_0(1:3))];
+    else
+        q_dot = -pinv(J1) * gain * [(pos - p_0(1:3))];
+    end
     
-    q_dot = -pinv(J1) * gain * [(pos - p); zeros(3, 1)];
-    q = q + q_dot * Tk;
-    
-% %     visualization
-%     figure(1);
-%     hold on;
-%     grid on;
-%     plot3(x(:, 1), x(:, 2), x(:, 3));
-%     [x_s, y_s, z_s] = sphere;
-%     r = 0.1;
-%     surf(x_s*r+p(1), y_s*r+p(2), z_s*r+p(3))
-%     axis equal
-%     xlabel('x(t)')
-%     ylabel('y(t)')
-%     zlabel('z(t)')
-%     view(10, 10);
+    qi = qi + [q_dot * Tk; 0];
+    q = [q qi];
+    i = i+1;
     
     % update
-    [R_se, J, tmp] = getJacobian_spatial(q);
+    [R_se, J, tmp] = getJacobian(qi);
     pos = R_se(1:3, 4) + R_se(1:3, 1:3) * [0; 0; 3*sqrt(2)];
-    distance = norm(pos - p);
+    distance = norm(pos - p_0(1:3));
     dist_arr = [dist_arr; distance];
 end
-toc
-
-%% 2
-close all;
-figure(2);
-hold on;
-grid on;
-[R_se, J, x] = getJacobian_spatial(q);
-plot3(x(:, 1), x(:, 2), x(:, 3));
-[x_s, y_s, z_s] = sphere;
-r = 0.1;
-surf(x_s*r+p(1), y_s*r+p(2), z_s*r+p(3))
-axis equal
-xlabel('x(t)')
-ylabel('y(t)')
-zlabel('z(t)')
-view(10, 10);

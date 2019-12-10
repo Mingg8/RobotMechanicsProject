@@ -6,14 +6,19 @@ dq = [0; 0; 0; 0; 0; 0];
 % [M,Mdot,C,Grav] = NE_matrix(q, dq);
 
 %% Impedance control without inertial shaping
-ugv_center = [0.75 * cos(pi/4); 0.75 * sin(pi/4); 0.8];
+T_s0 = Trans('x', 1.5) * Trans('y', -1.5) * Rot('z', pi*3/4) * Trans('z', 0.520);
+
+ugv_center = [-0.75 * cos(pi/4); 0.75 * sin(pi/4); 0.8];
 ugv_global = [ugv_center(1) + 0.25; ugv_center(2); 0.8];
 
 w = 1;
+gain_v = 10;
+gain_w = 10;
 elapsedTime = 0;
 q = [];
 qi = zeros(7, 1);
 
+[R_se, J, tmp] = getJacobian(qi);
 e = zeros(6, 1); de = zeros(6, 1);
 tic
 while (elapsedTime < 15)
@@ -25,20 +30,22 @@ while (elapsedTime < 15)
     ugv_base = inv(T_s0) * [ugv_global ; 1];
     
     % end-effector desired position
-    theta = atan(ugv_global(2) / ugv_global(1));
+    theta = atan(-ugv_global(2) / ugv_global(1));
     EE_global = eye(4);
-    EE_global(1:3, 4) = [3 * cos(theta); 3 * sin(theta); 0.8];
-    EE_global(1:3, 1:3) = [0, -sin(theta), -cos(theta);
-        0, cos(theta), -sin(theta)
+    EE_global(1:3, 4) = [3 * cos(theta); -3 * sin(theta); 0.8];
+    EE_global(1:3, 1:3) = [0, sin(theta), -cos(theta);
+        0, cos(theta), sin(theta)
         1, 0, 0];
     EE_base = inv(T_s0) * EE_global;
-    L6_base = EE_base * inv(T_6e);
-    qd = [IRB_link.ikine(L6_base)'; 0];
     
-    e = qi(1:6) - qd(1:6);
+    del_aa = rotm2axang(R_se' * EE_base(1:3, 1:3));
+    
+    e(1:3) = R_se(1:3, 4) - EE_base(1:3, 4);
+    e(4:6) = del_aa;
+    
     % Desired dynamics: M(dde) + C(de) + Ke = 0
     Md = diag([5, 5, 5, 5, 5, 5]);
-    Kd = diag([20000, 20000, 20000, 20000, 20000, 20000]);
+    Kd = diag([20, 20, 200, 200, 200, 200]);
     Cd = 2 * sqrt(Md * Kd); % critical damping
     
     % dynamic integration (semi explicit euler integration)

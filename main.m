@@ -1,4 +1,5 @@
 clc; clear; close all;
+addpath('functions')
 startup_rvc;
 
 %% Setup
@@ -8,12 +9,11 @@ a =     [0; 0.160; 0.980; 0.150; 0;    0;      -0.120];
 offset =[0; -pi/2; 0;     0;     0;   0;       0];
 d =     [0;   0;    0;   -0.860; 0;    0;       0.303]; 
 
-i = 1;
-L(i) = Link('d', d(i), 'a', a(i), 'alpha', alpha(i), 'offset', offset(i), 'modified'); 
-for i = 2:7
+for i = 1:7
     L(i) = Link('d', d(i), 'a', a(i), 'alpha', alpha(i), 'offset', offset(i), 'modified'); 
 end
 
+IRB_link = SerialLink(L(1:6));
 IRB1 = SerialLink(L);
 IRB2 = SerialLink(L);
 IRB3 = SerialLink(L);
@@ -27,11 +27,12 @@ T_6e = Rot('x', pi) * Trans('x', -0.120) * Trans('z', 0.303);
 % final_project_1
 % final_project_3
 final_project_4
+% final_project_5
 
 %%
 animation
 
 %% Test
-clc;
+% clc;
 q = [0; 0; 0; 0; 0; 0; 0];
 animation

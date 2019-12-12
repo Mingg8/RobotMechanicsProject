@@ -8,7 +8,7 @@ dq = [0; 0; 0; 0; 0; 0];
 %% Impedance control without inertial shaping
 T_s0 = Trans('x', -1.5) * Trans('y', 1.5) * Rot('z', -pi*1/4) * Trans('z', 0.520);
 
-ugv_center = [0.75 * cos(pi/4); -0.75 * sin(pi/4); 1];
+ugv_center = [0.5 * cos(pi/4); -0.5 * sin(pi/4); 1];
 ugv_global = [ugv_center(1) + 0.25; ugv_center(2); 1];
 ugv_global_arr = [];
 
@@ -38,41 +38,49 @@ Mi = Md;
 Ki = Kd * 10;
 Ci = 2 * sqrt(Mi * Ki);
 
+i = 1;
 tic
 while (elapsedTime < 15)
     elapsedTime =toc;
     % UAV pose update
-    ugv_global = [ugv_center(1) + 0.25 * cos(w * elapsedTime);
-        ugv_center(2) + 0.25 * sin(w * elapsedTime);
-        0.8];
+    ugv_global = [ugv_center(1) + 0.1 * cos(w * elapsedTime);
+        ugv_center(2) + 0.1 * sin(w * elapsedTime);
+        1];
     ugv_global_arr = [ugv_global_arr ugv_global];
     ugv_base = inv(T_s0) * [ugv_global ; 1];
     
     % end-effector desired position
     theta = atan(-ugv_global(2) / ugv_global(1));
     EE_global = eye(4);
-    EE_global(1:3, 4) = [-1.5 * cos(theta); 1.5 * sin(theta); 1];
+    EE_global(1:3, 4) = [-1 * cos(theta); 1 * sin(theta); 1];
+    tmp = Rot('z', -pi/2);
     EE_global(1:3, 1:3) = [0, -sin(theta), cos(theta);
         0, -cos(theta), -sin(theta)
-        1, 0, 0];
+        1, 0, 0] * tmp(1:3, 1:3);
     EE_base = inv(T_s0) * EE_global;
     
     % admittance dynamics
     aa_tmp = rotm2axang(rot_r(1:3, 1:3) * EE_base(1:3, 1:3)');
     del_aa = aa_tmp(1:3) * aa_tmp(4);
     e(1:3) = xr - EE_base(1:3, 4);
-    e(4:6) = del_aa;
+    e(4:6) = del_aa
     
 %     compute x_desired dot
+    if (i == 1)
+        EE_base_prev = EE_base;
+    end
     ddesired(1:3) = (EE_base(1:3, 4) - EE_base_prev(1:3, 4)) / Tk;
     aa_tmp = rotm2axang(EE_base(1:3, 1:3) * EE_base_prev(1:3, 1:3)');
-    ddesired(4:6) = aa_tmp(1:3) * aa_tmp(4);
+    ddesired(4:6) = aa_tmp(1:3) * aa_tmp(4)/Tk;
+%     aa_tmp = logm(EE_base(1:3, 1:3) * EE_base_prev(1:3, 1:3)');
+%     ddesired(4:6) = [-aa_tmp(2,3), aa_tmp(1,3), -aa_tmp(1,2)]'/Tk;
+    
     dddesired = (ddesired - ddesired_prev) / Tk;
     
     ddesired_prev = ddesired;
     EE_base_prev = EE_base;
     
-    % get contact force
+    % get contact forcea
     f_contact = zeros(6, 1);
         
     % Desired dynamics: M(dde) + C(de) + Ke = 0
@@ -80,9 +88,9 @@ while (elapsedTime < 15)
     f = f_contact + Md * dddesired + Cd * ddesired - Kd * e;
     dxr_next = dxr + Tk * inv(Md) * (f - Cd * dxr);
     xr = xr + Tk * dxr_next(1:3);
-    rot_delta = axang2rotm([dxr_next(4:6)'/norm(dxr_next(4:6)) norm(dxr_next(4:6))*Tk]);
-    rot_r = rot_delta * rot_r;
-        
+%     rot_delta = axang2rotm([dxr_next(4:6)'/norm(dxr_next(4:6)) norm(dxr_next(4:6))*Tk]);
+%     rot_r = rot_delta * rot_r;
+    rot_r = expm(skew(dxr_next(4:6) * Tk)) * rot_r;
     % impedance dynamics
     er(1:3) = T_0e(1:3, 4) - xr;
     aa_tmp = rotm2axang(T_0e(1:3, 1:3) * rot_r');
@@ -103,4 +111,5 @@ while (elapsedTime < 15)
     xr_prev = xr;
     rot_r_prev = rot_r;
     dxr = dxr_next;
+    i = i+1;
 end

@@ -72,8 +72,6 @@ while (elapsedTime < 15)
     ddesired(1:3) = (EE_base(1:3, 4) - EE_base_prev(1:3, 4)) / Tk;
     aa_tmp = rotm2axang(EE_base(1:3, 1:3) * EE_base_prev(1:3, 1:3)');
     ddesired(4:6) = aa_tmp(1:3) * aa_tmp(4)/Tk;
-%     aa_tmp = logm(EE_base(1:3, 1:3) * EE_base_prev(1:3, 1:3)');
-%     ddesired(4:6) = [-aa_tmp(2,3), aa_tmp(1,3), -aa_tmp(1,2)]'/Tk;
     
     dddesired = (ddesired - ddesired_prev) / Tk;
     
@@ -88,13 +86,17 @@ while (elapsedTime < 15)
     f = f_contact + Md * dddesired + Cd * ddesired - Kd * e;
     dxr_next = dxr + Tk * inv(Md) * (f - Cd * dxr);
     xr = xr + Tk * dxr_next(1:3);
+    % impedance dynamics
 %     rot_delta = axang2rotm([dxr_next(4:6)'/norm(dxr_next(4:6)) norm(dxr_next(4:6))*Tk]);
 %     rot_r = rot_delta * rot_r;
     rot_r = expm(skew(dxr_next(4:6) * Tk)) * rot_r;
-    % impedance dynamics
     er(1:3) = T_0e(1:3, 4) - xr;
-    aa_tmp = rotm2axang(T_0e(1:3, 1:3) * rot_r');
-    er(4:6) = aa_tmp(1:3) * aa_tmp(4);
+    tmp = logm(T_0e(1:3, 1:3) * rot_r');
+    er(4:6) = [-tmp(2,3); tmp(1,3); -tmp(1,2)];
+%     aa_tmp = rotm2axang(T_0e(1:3, 1:3) * rot_r');
+%     er(4:6) = aa_tmp(1:3) * aa_tmp(4);
+
+    
 %     
 %     dxr(1:3) = (xr - xr_prev) / Tk;
 %     aa_tmp = rotm2axang(rot_r * rot_r_prev');
@@ -103,6 +105,7 @@ while (elapsedTime < 15)
 %     dynamic integration (semi explicit euler integration)
     dq_next = dq - Tk * inv(Mi) * J' * (Ci * (J * dq - dxr_next) + Ki * er');
     qi = qi + [dq_next * Tk; 0];
+    q_sens = qi + (rand(1)-0.5) / 180.0 * pi;
     q = [q qi];
     [T_0e, J, tmp] = getJacobian(qi);
     

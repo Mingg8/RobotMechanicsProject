@@ -71,6 +71,7 @@ while (elapsedTime < 15)
 %     dynamic integration (semi explicit euler integration)
     dq_next = dq - Tk * inv(Md) * J' * (Cd * (J * dq - ddesired) + Kd * e);
     qi = qi + [dq_next * Tk; 0];
+    q_sens = q_sens + (rand(1)-0.5) / 180.0 * pi;
     q = [q qi];
     
     dq = dq_next;

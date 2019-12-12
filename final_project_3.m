@@ -55,6 +55,7 @@ while (elapsedTime < 3.0)
     end
     
     qi = qi + [q2_dot * Tk; 0];
+    q_sens = q_sens + (rand(1)-0.5) / 180.0 * pi;
     q = [q qi];
     
     % update

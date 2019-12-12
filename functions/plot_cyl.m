@@ -1,4 +1,4 @@
-function [work_handle] = plot_cyl(ax, r, extent, color, offset)
+function [x, y, z] = plot_cyl(ax, r, extent,offset)
     n = 20;
     theta = (0:n)/n*2*pi;
     % default value for offset
@@ -28,11 +28,11 @@ function [work_handle] = plot_cyl(ax, r, extent, color, offset)
     y = y + offset(2);
     z = z + offset(3);
 
-    % walls of the shape
-    surf(x,y,z, 'FaceColor', color, 'EdgeColor', 'none')
-
-    % put the ends on
-    work_handle = patch(x', y', z', color, 'EdgeColor', 'none');
+%     % walls of the shape
+%     surf(x,y,z, 'FaceColor', 'c', 'EdgeColor', 'none')
+% 
+%     % put the ends on
+%     work_handle = patch(x', y', z', color, 'EdgeColor', 'none');
     alpha(0.3);
 end
 

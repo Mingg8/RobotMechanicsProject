@@ -1,4 +1,4 @@
-function plot_cyl(ax, r, extent, color, offset)
+function [work_handle] = plot_cyl(ax, r, extent, color, offset)
     n = 20;
     theta = (0:n)/n*2*pi;
     % default value for offset
@@ -32,7 +32,7 @@ function plot_cyl(ax, r, extent, color, offset)
     surf(x,y,z, 'FaceColor', color, 'EdgeColor', 'none')
 
     % put the ends on
-    patch(x', y', z', color, 'EdgeColor', 'none');
+    work_handle = patch(x', y', z', color, 'EdgeColor', 'none');
     alpha(0.3);
 end
 

@@ -17,7 +17,7 @@ elapsedTime = 0;
 q = [-2.1914   -2.0542    0.6434    1.2885   -1.6268   -2.9782         0]';
 qi = q;
 
-[R_se, J, tmp] = getJacobian(qi);
+[T_0e, J, tmp] = getJacobian(qi);
 e = zeros(6, 1); 
 dq = zeros(6, 1);
 ddesired = zeros(6, 1); % x error
@@ -27,6 +27,11 @@ x_wall = zeros(2, 1); n_wall = zeros(2, 1);
 fe = zeros(6, 1);
 tic
 k = 0;
+
+Md = diag([5, 5, 5, 5, 5, 5]);
+Kd = diag([1000, 1000, 1000, 1000, 1000, 1000]);
+Cd = 2 * sqrt(Md * Kd); % critical damping
+
 while (elapsedTime < 3)
     elapsedTime = toc;
 %     UAV pose update
@@ -45,49 +50,45 @@ while (elapsedTime < 3)
         1, 0, 0];
     EE_base = inv(T_s0) * EE_global;
     
-    aa_tmp = rotm2axang(R_se(1:3, 1:3)*EE_base(1:3, 1:3)');
+    aa_tmp = rotm2axang(T_0e(1:3, 1:3)*EE_base(1:3, 1:3)');
     del_aa = aa_tmp(1:3) * aa_tmp(4);
     
-    e(1:3) =  R_se(1:3, 4) - EE_base(1:3, 4);
+    e(1:3) =  T_0e(1:3, 4) - EE_base(1:3, 4);
     e(4:6) = del_aa;
     
 %     compute x_desired dot
     ddesired(1:3) = (EE_base(1:3, 4) - EE_base_prev(1:3, 4)) / Tk;
     aa_tmp = rotm2axang(EE_base(1:3, 1:3) * EE_base_prev(1:3, 1:3)');
-    ddesired(4:6) = aa_tmp(1:3) * aa_tmp(4);
+    ddesired(4:6) = aa_tmp(1:3) * aa_tmp(4) / Tk;
     
-%     Desired dynamics: M(ddq) + C(dq) + J^TKe = 0
-    Md = diag([5, 5, 5, 5, 5, 5]);
-    Kd = diag([5000, 5000, 5000, 5000, 5000, 5000]);
-    Cd = 2 * sqrt(Md * Kd); % critical damping
-    
+%     Desired dynamics: M(ddq) + C(dq) + J^TKe = 0    
 %     dynamic integration (semi explicit euler integration)
-    dq_next = dq - Tk * inv(Md) * J' * (Cd * (J * dq - ddesired) + Kd * e);
+    dq_next = dq - Tk * inv(Md) * J' * (Cd * (J * dq - ddesired) + Kd * e - fe);
     qi = qi + [dq_next * Tk; 0];
     q = [q qi];
     
     dq = dq_next;
     EE_base_prev = EE_base;
-    R_se_prev = R_se;
-    [R_se, J, tmp] = getJacobian(qi);
+    T_0e_prev = T_0e;
+    [T_0e, J, tmp] = getJacobian(qi);
     
-%     % calculate fe
-%     theta = atan(R_se(2, 4)/(R_se(1,4) - 1.5*sqrt(2)));
-%     x_wall(1) = 1.5 * cos(theta) + 1.5 * sqrt(2);
-%     x_wall(2) = 1.5 * sin(theta);
-%     
-%     n_wall = [cos(theta); sin(theta)];
-%     if dot(R_se(1:2, 4) - x_wall, n_wall) < 0
-%         x_wall_g
-%         x_wall
-%         R_se
-%         "contact"
-%         k = k + 1;
-%         fe = [5 * dot(R_se(1:2, 4) - x_wall, n_wall) * n_wall;
-%             zeros(4,1)];
-%     else
-%         fe = zeros(6,1);
-%     end
+    % calculate fe
+    T_se = T_s0 * T_0e;
+    p_ee = T_se(1:2, 4);
+    theta = atan(p_ee(2)/p_ee(1));
+    x_wall(1) = 1.5 * cos(theta);
+    x_wall(2) = 1.5 * sin(theta);
+    n_wall = [cos(theta); sin(theta)];
+    
+    if dot(p_ee - x_wall, n_wall) < 0
+        k = k + 1;
+        fe = [-500 * dot(p_ee - x_wall, n_wall) * n_wall];
+        fe = T_s0(1:3, 1:3)' * [fe; 0];
+        fe = [fe; zeros(3,1)];
+        
+    else
+        fe = zeros(6,1);
+    end
     
 end
 

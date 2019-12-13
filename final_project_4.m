@@ -2,7 +2,7 @@
 alpha = 0;
 q = zeros(7,1);
 dq = [0; 0; 0; 0; 0; 0];
-% [R_base_e, J, x] = getJacobian(q);
+[R_base_e, J, x] = getJacobian(q);
 % [M,Mdot,C,Grav] = NE_matrix(q, dq);
 
 %% Impedance control without inertial shaping
@@ -22,6 +22,7 @@ e = zeros(6, 1);
 dq = zeros(6, 1);
 ddesired = zeros(6, 1); % x error
 ddesired_prev = ddesired;
+dddesired_prev = zeros(6, 1);
 EE_base_prev = eye(4);
 R_se_prev = eye(4);
 x_wall = zeros(2, 1); n_wall = zeros(2, 1);
@@ -66,10 +67,12 @@ while (elapsedTime < 15)
     ddesired(1:3) = (EE_base(1:3, 4) - EE_base_prev(1:3, 4)) / Tk;
     aa_tmp = logm(EE_base(1:3, 1:3) * EE_base_prev(1:3, 1:3)');
     ddesired(4:6) = [-aa_tmp(2,3), aa_tmp(1,3), -aa_tmp(1,2)]'/Tk;
+    dddesired = (ddesired - ddesired_prev) / Tk;
+    ddesired_prev = ddesired;
     
 %     Desired dynamics: M(ddq) + C(dq) + J^TKe = 0    
 %     dynamic integration (semi explicit euler integration)
-    dq_next = dq - Tk * inv(Md) * J' * (Cd * (J * dq - ddesired) + Kd * e);
+    dq_next = dq - Tk * inv(Md) * J' * (-Md * dddesired + Cd * (J * dq - ddesired) + Kd * e);
     qi = qi + [dq_next * Tk; 0];
     q_sens = q_sens + (rand(1)-0.5) / 180.0 * pi;
     q = [q qi];

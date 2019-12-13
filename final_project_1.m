@@ -3,6 +3,7 @@ clc;
 qi = [0; 0; 0; 0; 0; 0; 0];
 
 ugv_global = [0; 0; 0];
+ugv_global_arr = ugv_global;
 ugv_base = inv(T_s0) * [ugv_global; 1];
 [R_se, J, tmp] = getJacobian(qi);
 pos = R_se(1:3, 4) + R_se(1:3, 1:3) * [0; 0; 3*sqrt(2)];
@@ -13,6 +14,7 @@ gain = 50;
 
 q = [];
 while (abs(distance) > 1e-4)
+    ugv_global_arr = [ ugv_global_arr ugv_global];
     % control
     mat = [0, -3*sqrt(2), 0;
         3*sqrt(2), 0, 0;
@@ -32,6 +34,17 @@ while (abs(distance) > 1e-4)
     % update
     [R_se, J, tmp] = getJacobian(qi);
     pos = R_se(1:3, 4) + R_se(1:3, 1:3) * [0; 0; 3*sqrt(2)];
-    distance = norm(pos - ugv_base(1:3));
+    distance = norm(pos - ugv_base(1:3))
     dist_arr = [dist_arr; distance];
 end
+
+%%
+close all;
+t = 1:size(dist_arr,1);
+t = t * 0.001;
+plot(t, dist_arr)
+ax = gca;
+ax.XLabel.String = "time[s]";
+ax.YLabel.String = "Distance Error[m]";
+ax.Title.String = "Prob1 Distance Error";
+set(gca, 'fontsize', 18);
